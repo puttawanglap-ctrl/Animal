@@ -2,466 +2,807 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ผจญภัยอาณาจักรพยัญชนะไทย 🇹🇭✨</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมจำแนกสัตว์ได้อย่างไร - ป.4</title>
+    
+    <!-- Tailwind CSS (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Itim&family=Mali:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'spin-slow': 'spin 3s linear infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & ReactDOM (CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (สำหรับการแปลง JSX ในหน้าเว็บ) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
-        :root {
-            --primary: #FF85A2;
-            --secondary: #70D6FF;
-            --accent: #FFD670;
-            --success: #99FFAC;
-            --white: #ffffff;
-        }
-
-        body {
-            font-family: 'Mali', cursive;
-            background: linear-gradient(180deg, #A0E7FF 0%, #FFFFFF 100%);
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-            user-select: none;
-            touch-action: manipulation;
-        }
-
-        .kawaii-shadow {
-            box-shadow: 0 8px 0 rgba(0,0,0,0.1);
-        }
-
-        .btn-bounce:active {
-            transform: scale(0.95) translateY(4px);
-            box-shadow: 0 2px 0 rgba(0,0,0,0.1);
-        }
-
-        .floating {
-            animation: floating 3s ease-in-out infinite;
-        }
-
-        @keyframes floating {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .screen {
-            display: none;
-            height: 100%;
-            width: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            padding: 20px;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .active { display: flex; }
-
-        .letter-card {
-            background: white;
-            border: 4px solid var(--primary);
-            border-radius: 25px;
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .letter-card:hover { transform: rotate(3deg) scale(1.05); }
-
-        .progress-bar {
-            height: 20px;
-            background: #eee;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 2px solid #ddd;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
-            width: 0%;
-            transition: width 0.5s ease;
-        }
-
-        .confetti {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: red;
-            animation: fall 3s linear forwards;
-        }
-
-        @keyframes fall {
-            to { transform: translateY(100vh) rotate(360deg); }
-        }
-
-        /* Modal styling */
-        .modal-overlay {
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(5px);
-        }
+        body { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
-<body>
+<body class="bg-sky-50 font-sans text-gray-800 pb-[env(safe-area-inset-bottom)]">
+    
+    <div id="root"></div>
 
-    <!-- UI Overlay (Fixed) -->
-    <div id="ui-overlay" class="hidden fixed top-0 left-0 w-full p-4 z-50 flex justify-between items-center">
-        <div class="flex items-center gap-2">
-            <button onclick="goHome()" class="bg-white p-2 rounded-full border-2 border-pink-400 btn-bounce">🏠</button>
-            <div class="bg-white px-3 py-1 rounded-full border-2 border-pink-400 flex items-center gap-2 shadow-sm">
-                <span id="ui-stars">⭐ 0</span>
-                <span id="ui-coins">🪙 0</span>
-            </div>
-        </div>
-        <div class="flex items-center gap-2">
-            <div class="bg-white px-4 py-1 rounded-full border-2 border-blue-400 font-bold text-blue-600" id="ui-player-name">นักเรียน</div>
-            <button onclick="toggleSound()" id="sound-btn" class="bg-white p-2 rounded-full border-2 border-blue-400 btn-bounce">🔊</button>
-        </div>
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-    <!-- 1. Login Screen -->
-    <div id="screen-login" class="screen active justify-center bg-[#FFD6E0]">
-        <div class="bg-white p-8 rounded-[40px] border-8 border-pink-300 w-full max-w-sm text-center shadow-2xl">
-            <h1 class="text-3xl font-bold text-pink-500 mb-2">ยินดีต้อนรับ! 🐼</h1>
-            <p class="text-gray-500 mb-6 italic">ใส่ข้อมูลเพื่อเริ่มผจญภัย</p>
-            
-            <input type="text" id="input-name" placeholder="ชื่อเล่น" class="w-full mb-3 p-4 rounded-2xl border-4 border-pink-100 outline-none focus:border-pink-300 text-center text-xl">
-            <div class="flex gap-2 mb-6">
-                <input type="text" id="input-class" placeholder="ชั้น (เช่น ป.1)" class="w-1/2 p-4 rounded-2xl border-4 border-pink-100 outline-none focus:border-pink-300 text-center">
-                <input type="number" id="input-no" placeholder="เลขที่" class="w-1/2 p-4 rounded-2xl border-4 border-pink-100 outline-none focus:border-pink-300 text-center">
-            </div>
+        // --- SVG Icons (ทดแทน Lucide-react เพื่อให้ใช้งานแบบไฟล์เดียวได้สมบูรณ์) ---
+        const Play = ({className, fill}) => <svg className={className} fill={fill||"none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>;
+        const BookOpen = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
+        const Star = ({className, fill}) => <svg className={className} fill={fill||"none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
+        const Trophy = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>;
+        const Clock = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
+        const LogOut = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>;
+        const CheckCircle = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
+        const ShieldCheck = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>;
+        const UserIcon = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+        const Zap = ({className, fill}) => <svg className={className} fill={fill||"none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>;
+        const Activity = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>;
 
-            <button onclick="startGame()" class="w-full bg-pink-400 hover:bg-pink-500 text-white text-2xl py-4 rounded-2xl font-bold kawaii-shadow btn-bounce">เข้าสู่ห้องเรียน ✨</button>
-            
-            <button onclick="showAdmin()" class="mt-8 text-xs text-gray-300">Admin Only</button>
-        </div>
-    </div>
-
-    <!-- 2. Main Menu -->
-    <div id="screen-menu" class="screen">
-        <div class="mt-20 text-center">
-            <h2 class="text-4xl font-bold text-blue-500 floating mb-2">เลือกด่านเรียนรู้ 🏰</h2>
-            <div class="grid grid-cols-2 gap-4 mt-8 max-w-md">
-                <button onclick="loadModule('thai')" class="bg-[#FF9AA2] p-6 rounded-3xl border-b-8 border-red-400 text-white font-bold text-xl btn-bounce">
-                    <div class="text-4xl mb-2">🇹🇭</div> ก-ฮ
-                </button>
-                <button onclick="loadModule('vowel')" class="bg-[#B5EAD7] p-6 rounded-3xl border-b-8 border-green-400 text-white font-bold text-xl btn-bounce">
-                    <div class="text-4xl mb-2">🌈</div> สระไทย
-                </button>
-                <button onclick="loadModule('tone')" class="bg-[#FFDAC1] p-6 rounded-3xl border-b-8 border-orange-300 text-white font-bold text-xl btn-bounce">
-                    <div class="text-4xl mb-2">✨</div> วรรณยุกต์
-                </button>
-                <button onclick="loadModule('abc')" class="bg-[#C7CEEA] p-6 rounded-3xl border-b-8 border-purple-400 text-white font-bold text-xl btn-bounce">
-                    <div class="text-4xl mb-2">🔤</div> A-Z
-                </button>
-            </div>
-            
-            <div class="mt-10 flex gap-4">
-                <button onclick="showLeaderboard()" class="bg-yellow-400 px-6 py-2 rounded-full text-white font-bold btn-bounce shadow-md">🏆 อันดับ</button>
-                <button onclick="showStickers()" class="bg-blue-400 px-6 py-2 rounded-full text-white font-bold btn-bounce shadow-md">🎁 ของสะสม</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. Learning View (Consonants) -->
-    <div id="screen-game" class="screen">
-        <div class="mt-16 w-full max-w-md">
-            <div class="progress-bar mb-4">
-                <div id="game-progress" class="progress-fill"></div>
-            </div>
-            
-            <div id="question-area" class="bg-white p-6 rounded-[30px] border-4 border-pink-200 shadow-xl text-center relative">
-                <div id="mascot" class="absolute -top-12 -left-4 text-5xl floating">🐼</div>
-                <h3 id="question-text" class="text-2xl font-bold text-gray-700 mb-6">จิ้มรูปที่คู่กับตัวอักษรนี้!</h3>
-                
-                <div id="target-display" class="text-8xl font-bold text-pink-500 mb-8 p-4 bg-pink-50 rounded-2xl inline-block min-w-[120px]">ก</div>
-                
-                <div id="options-grid" class="grid grid-cols-2 gap-4">
-                    <!-- Options injected by JS -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 4. Result Screen -->
-    <div id="screen-result" class="screen justify-center">
-        <div class="bg-white p-10 rounded-[40px] border-8 border-yellow-300 text-center max-w-sm shadow-2xl">
-            <h1 class="text-5xl mb-4">🎉</h1>
-            <h2 class="text-3xl font-bold text-gray-800">เก่งมาก!</h2>
-            <p class="text-xl text-pink-500 mb-6" id="result-name">นักเรียนตัวน้อย</p>
-            
-            <div class="bg-yellow-50 p-6 rounded-2xl mb-8">
-                <div class="flex justify-around items-center">
-                    <div>
-                        <div class="text-3xl font-bold text-yellow-500" id="result-stars">0</div>
-                        <div class="text-sm text-gray-500">ดาวที่ได้รับ</div>
-                    </div>
-                    <div>
-                        <div class="text-3xl font-bold text-blue-500" id="result-coins">0</div>
-                        <div class="text-sm text-gray-500">เหรียญทอง</div>
-                    </div>
-                </div>
-            </div>
-
-            <button onclick="goHome()" class="w-full bg-green-400 text-white text-2xl py-4 rounded-2xl font-bold btn-bounce kawaii-shadow mb-4">กลับหน้าหลัก</button>
-            <button onclick="window.location.reload()" class="text-gray-400 font-bold underline">เล่นอีกรอบ</button>
-        </div>
-    </div>
-
-    <!-- 5. Admin Panel -->
-    <div id="screen-admin" class="screen bg-gray-100 p-4">
-        <div class="bg-white w-full h-full rounded-2xl p-6 overflow-auto shadow-inner">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">📊 แผงควบคุมคุณครู</h2>
-                <button onclick="goHome()" class="text-red-500 font-bold">ปิด [X]</button>
-            </div>
-            
-            <table class="w-full text-left text-sm">
-                <thead class="bg-gray-200">
-                    <tr>
-                        <th class="p-2">ชื่อ</th>
-                        <th class="p-2">ชั้น</th>
-                        <th class="p-2">ดาว</th>
-                        <th class="p-2">คะแนนรวม</th>
-                    </tr>
-                </thead>
-                <tbody id="admin-table-body">
-                    <!-- Data here -->
-                </tbody>
-            </table>
-            
-            <div class="mt-8 flex gap-2">
-                <button onclick="exportData()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-xs">Export CSV</button>
-                <button onclick="clearData()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs">ล้างข้อมูลทั้งหมด</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // --- Game Logic & State ---
-        let gameState = {
-            player: { name: '', class: '', no: '', stars: 0, coins: 0, level: 1 },
-            currentModule: 'thai',
-            currentStep: 0,
-            totalSteps: 5,
-            score: 0,
-            isMuted: false
-        };
-
-        const DATA_THAI = [
-            { char: 'ก', img: '🐔', name: 'ไก่' },
-            { char: 'ข', img: '🥚', name: 'ไข่' },
-            { char: 'ค', img: '🐃', name: 'ควาย' },
-            { char: 'ง', img: '🐍', name: 'งู' },
-            { char: 'จ', img: '🍽️', name: 'จาน' },
-            { char: 'ฉ', img: '🥁', name: 'ฉิ่ง' },
-            { char: 'ช', img: '🐘', name: 'ช้าง' }
+        // --- Game Data ---
+        const ANIMAL_DATA = [
+            { id: 'a1', name: 'นก', emoji: '🐦', type: 'vertebrate', hint: 'มีปีก บินได้' },
+            { id: 'a2', name: 'ปลา', emoji: '🐟', type: 'vertebrate', hint: 'ว่ายน้ำ หายใจด้วยเหงือก' },
+            { id: 'a3', name: 'เต่าทะเล', emoji: '🐢', type: 'vertebrate', hint: 'มีกระดองแข็ง' },
+            { id: 'a4', name: 'เป็ด', emoji: '🦆', type: 'vertebrate', hint: 'ลอยน้ำได้' },
+            { id: 'a5', name: 'กิ้งก่า', emoji: '🦎', type: 'vertebrate', hint: 'สัตว์เลื้อยคลาน เปลี่ยนสีได้' },
+            { id: 'a6', name: 'แมงมุม', emoji: '🕷️', type: 'invertebrate', hint: 'มี 8 ขา สร้างใยได้' },
+            { id: 'a7', name: 'หอยทาก', emoji: '🐌', type: 'invertebrate', hint: 'เดินช้า มีเปลือกหุ้มตัว' },
+            { id: 'a8', name: 'กุ้ง', emoji: '🦐', type: 'invertebrate', hint: 'อยู่ในน้ำ มีเปลือกแข็งแต่ไม่มีกระดูก' },
+            { id: 'a9', name: 'ผึ้ง', emoji: '🐝', type: 'invertebrate', hint: 'แมลงสร้างน้ำผึ้ง' },
+            { id: 'a10', name: 'ไส้เดือน', emoji: '🪱', type: 'invertebrate', hint: 'ตัวยาวๆ อยู่ในดิน' },
         ];
 
-        const DATA_ABC = [
-            { char: 'A', img: '🍎', name: 'Apple' },
-            { char: 'B', img: '🐝', name: 'Bee' },
-            { char: 'C', img: '🐱', name: 'Cat' },
-            { char: 'D', img: '🐶', name: 'Dog' }
+        const QUIZ_DATA = [
+            { q: "สัตว์ชนิดใดมีกระดูกสันหลัง?", options: ["แมงมุม", "ไส้เดือน", "ปลา", "กุ้ง"], a: "ปลา" },
+            { q: "หอยทาก จัดอยู่ในกลุ่มใด?", options: ["สัตว์มีกระดูกสันหลัง", "สัตว์ไม่มีกระดูกสันหลัง"], a: "สัตว์ไม่มีกระดูกสันหลัง" },
+            { q: "สัตว์ที่มีกระดูกสันหลังมีลักษณะเด่นอย่างไร?", options: ["มีเปลือกแข็งหุ้ม", "มีกระดูกเป็นข้อๆ ตามแกนลำตัว", "มีขา 8 ขา", "ไม่มีข้อใดถูก"], a: "มีกระดูกเป็นข้อๆ ตามแกนลำตัว" },
+            { q: "ข้อใดคือสัตว์ไม่มีกระดูกสันหลังทั้งหมด?", options: ["นก, ปลา", "กุ้ง, กิ้งก่า", "แมงมุม, ผึ้ง", "เต่า, ไส้เดือน"], a: "แมงมุม, ผึ้ง" },
         ];
 
-        // --- Core Functions ---
+        // --- Helper Functions ---
+        const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
+        const vibrate = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
 
-        function startGame() {
-            const name = document.getElementById('input-name').value;
-            if (!name) return alert('กรุณาใส่ชื่อก่อนจ้า 😊');
-            
-            gameState.player.name = name;
-            gameState.player.class = document.getElementById('input-class').value;
-            gameState.player.no = document.getElementById('input-no').value;
+        // --- Main Application Component ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [fb, setFb] = useState(null); // Firebase Instances
+            const [screen, setScreen] = useState('HOME'); 
+            const [student, setStudent] = useState({ name: '', className: 'ป.4/1', rollNo: '', score: 0 });
+            const [gameStats, setGameStats] = useState({ stars: 0, combo: 0 });
 
-            document.getElementById('ui-player-name').innerText = name;
-            document.getElementById('ui-overlay').classList.remove('hidden');
-            
-            savePlayer();
-            switchScreen('screen-menu');
-        }
+            // --- เชื่อมต่อ Firebase (ถ้ามี Config) ---
+            useEffect(() => {
+                const initFirebase = async () => {
+                    // หากคุณต้องการเปิดระบบเซฟข้อมูล นำ Firebase Config ของคุณมาวางแทนที่ปีกกาว่างๆ ด้านล่างนี้ครับ
+                    // ตัวอย่าง: const MY_FIREBASE_CONFIG = { apiKey: "xxx", authDomain: "xxx", projectId: "xxx", ... };
+                    const MY_FIREBASE_CONFIG = {}; 
+                    
+                    // เพื่อรองรับระบบของ Canvas
+                    const configToUse = Object.keys(MY_FIREBASE_CONFIG).length > 0 
+                        ? MY_FIREBASE_CONFIG 
+                        : (typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {});
 
-        function switchScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
+                    if (Object.keys(configToUse).length === 0) return; // ทำงานแบบ Offline ถ้ายไม่มี Config
 
-        function loadModule(module) {
-            gameState.currentModule = module;
-            gameState.currentStep = 0;
-            gameState.score = 0;
-            updateProgress();
-            nextQuestion();
-            switchScreen('screen-game');
-        }
+                    try {
+                        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                        const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                        const { getFirestore, collection, doc, setDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
-        function nextQuestion() {
-            if (gameState.currentStep >= gameState.totalSteps) {
-                showResults();
-                return;
-            }
+                        const app = initializeApp(configToUse);
+                        const auth = getAuth(app);
+                        const db = getFirestore(app);
 
-            const dataSet = gameState.currentModule === 'abc' ? DATA_ABC : DATA_THAI;
-            const correct = dataSet[Math.floor(Math.random() * dataSet.length)];
-            
-            document.getElementById('target-display').innerText = correct.char;
-            
-            // Generate options
-            let options = [correct];
-            while (options.length < 4) {
-                let random = dataSet[Math.floor(Math.random() * dataSet.length)];
-                if (!options.find(o => o.char === random.char)) options.push(random);
-            }
-            options.sort(() => Math.random() - 0.5);
+                        setFb({ db, collection, doc, setDoc, onSnapshot });
 
-            const grid = document.getElementById('options-grid');
-            grid.innerHTML = '';
-            options.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.className = "bg-blue-50 p-6 rounded-2xl border-4 border-blue-100 hover:border-blue-400 text-4xl transition-all btn-bounce";
-                btn.innerHTML = `<div>${opt.img}</div><div class="text-sm mt-1 text-gray-500 font-bold">${opt.name}</div>`;
-                btn.onclick = () => checkAnswer(opt.char === correct.char, btn);
-                grid.appendChild(btn);
-            });
-        }
+                        const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+                        if (initialToken) {
+                            await signInWithCustomToken(auth, initialToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
 
-        function checkAnswer(isCorrect, btn) {
-            if (isCorrect) {
-                playSound('correct');
-                btn.classList.replace('border-blue-100', 'border-green-400');
-                btn.classList.add('bg-green-50');
-                gameState.player.stars += 1;
-                gameState.player.coins += 5;
-                gameState.score += 1;
-                createConfetti();
+                        onAuthStateChanged(auth, (u) => setUser(u));
+                    } catch (err) {
+                        console.error("Firebase init error:", err);
+                    }
+                };
+                initFirebase();
+            }, []);
+
+            // --- Save Progress to Firestore ---
+            const saveProgress = async (newScore) => {
+                if (!user || !fb || !student.name) return;
+                try {
+                    const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'animal-classification-p4';
+                    const docRef = fb.doc(fb.db, 'artifacts', appId, 'public', 'data', 'students', user.uid);
+                    await fb.setDoc(docRef, {
+                        ...student,
+                        score: newScore || student.score,
+                        lastPlayed: new Date().toISOString(),
+                        uid: user.uid
+                    }, { merge: true });
+                } catch (err) {
+                    console.error("Save error:", err);
+                }
+            };
+
+            const addScore = (points) => {
+                const comboMultiplier = 1 + (gameStats.combo * 0.1);
+                const earned = Math.round(points * comboMultiplier);
+                const newScore = student.score + earned;
+                setStudent(prev => ({ ...prev, score: newScore }));
+                saveProgress(newScore);
+            };
+
+            const handleCorrect = () => {
+                setGameStats(p => ({ ...p, combo: p.combo + 1, stars: p.stars + 1 }));
+                addScore(100);
+            };
+
+            const handleWrong = () => {
+                setGameStats(p => ({ ...p, combo: 0 }));
+                vibrate(200);
+            };
+
+            // --- Screens ---
+
+            const renderHome = () => (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] space-y-8 p-4 text-center animate-fade-in">
+                <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400"></div>
+                    <h1 className="text-4xl font-black text-blue-600 mt-4 mb-2 drop-shadow-sm">จำแนกสัตว์<br/>ได้อย่างไร?</h1>
+                    <p className="text-gray-600 mb-8 font-medium">เกมวิทยาศาตร์แสนสนุก สำหรับ ป.4</p>
+                    
+                    <div className="flex justify-center space-x-4 mb-8 text-5xl">
+                    <span className="animate-bounce">🦕</span>
+                    <span className="animate-bounce" style={{animationDelay: '0.2s'}}>🦴</span>
+                    <span className="animate-bounce" style={{animationDelay: '0.4s'}}>🦋</span>
+                    </div>
+
+                    <button 
+                    onClick={() => setScreen('LOGIN')}
+                    className="w-full bg-gradient-to-r from-green-400 to-green-500 text-white font-bold py-4 rounded-2xl shadow-lg transform transition active:scale-95 flex items-center justify-center space-x-2 text-xl"
+                    >
+                    <Play className="w-6 h-6" fill="currentColor" />
+                    <span>เข้าสู่ระบบนักเรียน</span>
+                    </button>
+
+                    <button 
+                    onClick={() => setScreen('ADMIN_LOGIN')}
+                    className="w-full mt-4 bg-gray-100 text-gray-500 font-bold py-3 rounded-2xl shadow-sm transform transition active:scale-95 flex items-center justify-center space-x-2"
+                    >
+                    <ShieldCheck className="w-5 h-5" />
+                    <span>สำหรับคุณครู (Admin)</span>
+                    </button>
+                </div>
+                </div>
+            );
+
+            const renderLogin = () => {
+                const [pwd, setPwd] = useState('');
+                const handleLogin = (e) => {
+                e.preventDefault();
+                if (pwd === '1234' && student.name) {
+                    setScreen('TUTORIAL');
+                } else {
+                    alert("รหัสผ่านไม่ถูกต้อง (ใบ้: 1234) หรือลืมใส่ชื่อ");
+                    vibrate(200);
+                }
+                };
+                return (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4">
+                    <form onSubmit={handleLogin} className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md">
+                    <div className="flex items-center justify-center mb-6 bg-blue-100 w-16 h-16 rounded-full mx-auto">
+                        <UserIcon className="text-blue-500 w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">ข้อมูลนักเรียน</h2>
+                    
+                    <div className="space-y-4">
+                        <input required type="text" placeholder="ชื่อ - นามสกุล" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition" 
+                        value={student.name} onChange={e => setStudent({...student, name: e.target.value})} />
+                        
+                        <div className="flex space-x-4">
+                        <select className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                            value={student.className} onChange={e => setStudent({...student, className: e.target.value})}>
+                            <option>ป.4/1</option>
+                            <option>ป.4/2</option>
+                            <option>ป.4/3</option>
+                        </select>
+                        <input required type="number" placeholder="เลขที่" className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                            value={student.rollNo} onChange={e => setStudent({...student, rollNo: e.target.value})} />
+                        </div>
+
+                        <input required type="password" placeholder="รหัสผ่านเข้าเกม (1234)" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                        value={pwd} onChange={e => setPwd(e.target.value)} />
+                    </div>
+
+                    <button type="submit" className="w-full mt-8 bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
+                        เข้าสู่บทเรียน
+                    </button>
+                    <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400 font-medium py-2">
+                        กลับหน้าหลัก
+                    </button>
+                    </form>
+                </div>
+                );
+            };
+
+            const renderAdminLogin = () => {
+                const [pwd, setPwd] = useState('');
+                const handleLogin = (e) => {
+                e.preventDefault();
+                if (pwd === 'admin') setScreen('ADMIN');
+                else { alert("รหัสผ่านผิด (ใบ้: admin)"); vibrate(200); }
+                };
+                return (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4">
+                    <form onSubmit={handleLogin} className="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md text-white">
+                    <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-green-400" />
+                    <h2 className="text-2xl font-bold text-center mb-6">ระบบจัดการครูผู้สอน</h2>
+                    <input required type="password" placeholder="รหัสผ่าน Admin" className="w-full p-4 bg-gray-700 rounded-xl border border-gray-600 text-white mb-6"
+                        value={pwd} onChange={e => setPwd(e.target.value)} />
+                    <button type="submit" className="w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
+                        เข้าสู่ระบบ
+                    </button>
+                    <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400">กลับหน้าหลัก</button>
+                    </form>
+                </div>
+                );
+            };
+
+            const renderTutorial = () => {
+                return (
+                <div className="max-w-md mx-auto min-h-screen bg-white p-6 pb-24">
+                    <div className="bg-blue-100 text-blue-800 p-4 rounded-2xl mb-6 flex items-center space-x-3">
+                    <BookOpen className="w-8 h-8" />
+                    <h2 className="text-2xl font-bold">บทเรียนก่อนเล่น</h2>
+                    </div>
+                    
+                    <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-200 mb-6 shadow-sm">
+                    <h3 className="text-xl font-bold text-yellow-800 mb-3 flex items-center">
+                        <Activity className="w-6 h-6 mr-2" /> สัตว์มีกระดูกสันหลัง คืออะไร?
+                    </h3>
+                    <p className="text-gray-700 leading-relaxed mb-4">
+                        คือสัตว์ที่มี <strong className="text-blue-600">กระดูกสันหลัง (Backbone)</strong> เป็นข้อๆ เรียงต่อกันไปตามแนวลำตัว ทำหน้าที่เป็นแกนกลางช่วยพยุงร่างกาย
+                    </p>
+                    <div className="flex justify-around items-center bg-white p-4 rounded-2xl shadow-inner">
+                        <div className="text-center">
+                        <span className="text-4xl block mb-2">🐟</span>
+                        <span className="text-sm font-bold text-green-600">มีกระดูก</span>
+                        </div>
+                        <div className="text-4xl text-gray-300">VS</div>
+                        <div className="text-center">
+                        <span className="text-4xl block mb-2">🐙</span>
+                        <span className="text-sm font-bold text-red-500">ไม่มีกระดูก</span>
+                        </div>
+                    </div>
+                    </div>
+
+                    <button 
+                    onClick={() => setScreen('L1')}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 rounded-2xl shadow-[0_4px_0_rgb(37,99,235)] active:shadow-none active:translate-y-1 transition-all text-xl animate-pulse"
+                    >
+                    เริ่มเกมด่านที่ 1 !
+                    </button>
+                </div>
+                );
+            };
+
+            // --- LEVEL 1: Match Name and Picture ---
+            const renderLevel1 = () => {
+                const [items, setItems] = useState([]);
+                const [selectedEmoji, setSelectedEmoji] = useState(null);
+                const [matched, setMatched] = useState([]);
+
+                useEffect(() => {
+                const selected = shuffle(ANIMAL_DATA).slice(0, 4);
+                const emojis = selected.map(s => ({ id: s.id, type: 'emoji', content: s.emoji, animalId: s.id }));
+                const names = selected.map(s => ({ id: s.id + '_name', type: 'name', content: s.name, animalId: s.id }));
+                setItems(shuffle([...emojis, ...names]));
+                }, []);
+
+                const handleTap = (item) => {
+                if (matched.includes(item.animalId)) return;
                 
-                setTimeout(() => {
-                    gameState.currentStep++;
-                    updateProgress();
-                    updateUI();
-                    nextQuestion();
-                }, 800);
-            } else {
-                playSound('wrong');
-                btn.classList.add('animate-shake', 'bg-red-50', 'border-red-300');
-                setTimeout(() => btn.classList.remove('bg-red-50', 'border-red-300'), 500);
-            }
+                if (!selectedEmoji) {
+                    setSelectedEmoji(item);
+                } else {
+                    if (selectedEmoji.id === item.id) {
+                    setSelectedEmoji(null);
+                    } else if (selectedEmoji.animalId === item.animalId && selectedEmoji.type !== item.type) {
+                    setMatched([...matched, item.animalId]);
+                    handleCorrect();
+                    setSelectedEmoji(null);
+                    } else {
+                    handleWrong();
+                    setSelectedEmoji(null);
+                    }
+                }
+                };
+
+                if (matched.length === 4) {
+                    return <LevelComplete title="เก่งมาก! จับคู่ครบแล้ว" onNext={() => setScreen('L2')} />;
+                }
+
+                return (
+                <GameLayout title="ด่าน 1: จับคู่ภาพและชื่อ" level={1} stats={gameStats} student={student}>
+                    <p className="text-center text-gray-600 mb-6 font-medium">แตะที่รูปภาพและชื่อให้ตรงกัน</p>
+                    <div className="grid grid-cols-2 gap-4">
+                    {items.map(item => {
+                        const isMatched = matched.includes(item.animalId);
+                        const isSelected = selectedEmoji?.id === item.id;
+                        return (
+                        <button
+                            key={item.id}
+                            onClick={() => handleTap(item)}
+                            disabled={isMatched}
+                            className={`
+                            p-6 rounded-2xl shadow-md text-3xl font-bold flex items-center justify-center transition-all duration-300 relative
+                            ${isMatched ? 'bg-green-100 opacity-50 scale-95 border-2 border-green-400' : 'bg-white hover:bg-gray-50 active:scale-95'}
+                            ${isSelected ? 'ring-4 ring-blue-400 scale-105' : 'border border-gray-200'}
+                            `}
+                            style={{ minHeight: '100px' }}
+                        >
+                            {item.content}
+                            {isMatched && <CheckCircle className="absolute text-green-500 w-8 h-8 opacity-100" />}
+                        </button>
+                        )
+                    })}
+                    </div>
+                </GameLayout>
+                );
+            };
+
+            // --- LEVEL 2: Classification ---
+            const renderLevel2 = () => {
+                const [queue, setQueue] = useState([]);
+                const [current, setCurrent] = useState(0);
+
+                useEffect(() => {
+                setQueue(shuffle(ANIMAL_DATA).slice(0, 6));
+                }, []);
+
+                const handleClassify = (isVert) => {
+                const animal = queue[current];
+                const correctIsVert = animal.type === 'vertebrate';
+                if (isVert === correctIsVert) {
+                    handleCorrect();
+                } else {
+                    handleWrong();
+                }
+                setTimeout(() => setCurrent(c => c + 1), 300);
+                };
+
+                if (queue.length > 0 && current >= queue.length) {
+                    return <LevelComplete title="ยอดเยี่ยม! คัดแยกเสร็จสิ้น" onNext={() => setScreen('L3')} />;
+                }
+
+                const animal = queue[current];
+
+                return (
+                <GameLayout title="ด่าน 2: จำแนกประเภท" level={2} stats={gameStats} student={student}>
+                    <p className="text-center text-gray-600 mb-4 font-medium">สัตว์ตัวนี้มีกระดูกสันหลังหรือไม่?</p>
+                    
+                    {animal && (
+                    <div className="flex justify-center mb-8">
+                        <div className="w-40 h-40 bg-white rounded-full shadow-xl flex items-center justify-center text-7xl animate-bounce">
+                        {animal.emoji}
+                        </div>
+                    </div>
+                    )}
+
+                    <div className="flex space-x-4">
+                    <button 
+                        onClick={() => handleClassify(true)}
+                        className="flex-1 bg-green-100 border-2 border-green-500 text-green-700 py-6 rounded-2xl font-bold text-lg active:scale-95 transition shadow-sm flex flex-col items-center"
+                    >
+                        <span className="text-3xl mb-2">🦴</span>
+                        มีกระดูกสันหลัง
+                    </button>
+                    <button 
+                        onClick={() => handleClassify(false)}
+                        className="flex-1 bg-red-100 border-2 border-red-500 text-red-700 py-6 rounded-2xl font-bold text-lg active:scale-95 transition shadow-sm flex flex-col items-center"
+                    >
+                        <span className="text-3xl mb-2">❌</span>
+                        ไม่มีกระดูกสันหลัง
+                    </button>
+                    </div>
+                    <p className="text-center mt-6 text-sm text-gray-400">เหลืออีก {queue.length - current} ตัว</p>
+                </GameLayout>
+                );
+            };
+
+            // --- LEVEL 3: X-Ray Scanner ---
+            const renderLevel3 = () => {
+                const [animals, setAnimals] = useState([]);
+                const [scannedCount, setScannedCount] = useState(0);
+
+                useEffect(() => {
+                setAnimals(shuffle(ANIMAL_DATA).slice(0, 6).map(a => ({...a, scanned: false})));
+                }, []);
+
+                const scanAnimal = (index) => {
+                const newArr = [...animals];
+                if (!newArr[index].scanned) {
+                    newArr[index].scanned = true;
+                    setScannedCount(c => c + 1);
+                    handleCorrect();
+                }
+                setAnimals(newArr);
+                };
+
+                if (scannedCount === 6) {
+                    return <LevelComplete title="สุดยอด! สแกนครบทุกตัวแล้ว" onNext={() => setScreen('L4')} />;
+                }
+
+                return (
+                <GameLayout title="ด่าน 3: สแกนกระดูก" level={3} stats={gameStats} student={student}>
+                    <p className="text-center text-gray-600 mb-6 font-medium">แตะที่สัตว์เพื่อใช้รังสี X-Ray ค้นหากระดูก</p>
+                    <div className="grid grid-cols-2 gap-4">
+                    {animals.map((a, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => scanAnimal(idx)}
+                            className={`h-32 rounded-3xl flex flex-col items-center justify-center text-5xl transition-all duration-500 relative overflow-hidden shadow-md
+                            ${a.scanned ? (a.type === 'vertebrate' ? 'bg-blue-900 text-white' : 'bg-gray-100 opacity-50') : 'bg-white'}`}
+                        >
+                        {a.scanned && a.type === 'vertebrate' && (
+                            <div className="absolute inset-0 flex items-center justify-center opacity-30 text-white text-6xl">🦴</div>
+                        )}
+                        <span className="relative z-10" style={{ filter: a.scanned && a.type === 'vertebrate' ? 'brightness(0) invert(1)' : 'none' }}>
+                            {a.emoji}
+                        </span>
+                        {a.scanned && (
+                            <div className="absolute bottom-2 text-sm font-bold w-full text-center z-10 text-white bg-black bg-opacity-30 py-1">
+                            {a.type === 'vertebrate' ? 'มีกระดูก!' : 'ไม่มีกระดูก'}
+                            </div>
+                        )}
+                        </button>
+                    ))}
+                    </div>
+                </GameLayout>
+                );
+            };
+
+            // --- LEVEL 4: Quiz Challenge ---
+            const renderLevel4 = () => {
+                const [currentQ, setCurrentQ] = useState(0);
+
+                const handleAnswer = (opt) => {
+                if (opt === QUIZ_DATA[currentQ].a) {
+                    handleCorrect();
+                } else {
+                    handleWrong();
+                }
+                setTimeout(() => setCurrentQ(c => c + 1), 500);
+                };
+
+                if (currentQ >= QUIZ_DATA.length) {
+                    return <LevelComplete title="ความรู้แน่นมาก! ผ่านด่าน 4" onNext={() => setScreen('L5')} />;
+                }
+
+                const q = QUIZ_DATA[currentQ];
+
+                return (
+                <GameLayout title="ด่าน 4: ควิซวิทยาศาสตร์" level={4} stats={gameStats} student={student}>
+                    <div className="bg-white p-6 rounded-3xl shadow-md mb-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-blue-100 text-blue-800 px-3 py-1 rounded-bl-xl font-bold">
+                        ข้อ {currentQ + 1}/{QUIZ_DATA.length}
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mt-4 mb-2">{q.q}</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                    {q.options.map((opt, i) => (
+                        <button 
+                        key={i} 
+                        onClick={() => handleAnswer(opt)}
+                        className="w-full text-left bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 active:bg-blue-50 transition-all font-medium text-gray-700"
+                        >
+                        {opt}
+                        </button>
+                    ))}
+                    </div>
+                </GameLayout>
+                );
+            };
+
+            // --- LEVEL 5: Time Attack ---
+            const renderLevel5 = () => {
+                const [timeLeft, setTimeLeft] = useState(20);
+                const [animal, setAnimal] = useState(null);
+                const [playing, setPlaying] = useState(false);
+
+                const nextAnimal = () => setAnimal(ANIMAL_DATA[Math.floor(Math.random() * ANIMAL_DATA.length)]);
+
+                useEffect(() => {
+                let timer;
+                if (playing && timeLeft > 0) {
+                    timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
+                } else if (timeLeft === 0 && playing) {
+                    setPlaying(false);
+                }
+                return () => clearInterval(timer);
+                }, [playing, timeLeft]);
+
+                const startGame = () => {
+                setPlaying(true);
+                nextAnimal();
+                };
+
+                const handleAnswer = (isVert) => {
+                const correctIsVert = animal.type === 'vertebrate';
+                if (isVert === correctIsVert) {
+                    handleCorrect();
+                    setStudent(prev => ({ ...prev, score: prev.score + 50 }));
+                } else {
+                    handleWrong();
+                }
+                nextAnimal();
+                };
+
+                if (timeLeft === 0) {
+                    return <LevelComplete title="หมดเวลา! ทักษะยอดเยี่ยมมาก" onNext={() => setScreen('CERTIFICATE')} />;
+                }
+
+                return (
+                <GameLayout title="ด่าน 5: ท้าทายเวลา (Time Attack)" level={5} stats={gameStats} student={student}>
+                    {!playing ? (
+                    <div className="text-center py-12 bg-white rounded-3xl shadow-sm">
+                        <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
+                        <h3 className="text-xl font-bold mb-2">พร้อมไหม?</h3>
+                        <p className="text-gray-500 mb-6">แยกประเภทให้เร็วที่สุดใน 20 วินาที</p>
+                        <button onClick={startGame} className="bg-orange-500 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg animate-pulse">
+                        เริ่มจับเวลา!
+                        </button>
+                    </div>
+                    ) : (
+                    <div>
+                        <div className="flex justify-between items-center mb-6">
+                        <div className="text-2xl font-black text-red-500 flex items-center bg-red-100 px-4 py-2 rounded-full">
+                            <Clock className="w-6 h-6 mr-2" /> {timeLeft}s
+                        </div>
+                        </div>
+                        
+                        {animal && (
+                        <div className="text-center bg-white py-12 rounded-3xl shadow-md mb-6 transition-all duration-200 transform scale-100">
+                            <span className="text-8xl">{animal.emoji}</span>
+                            <h2 className="text-2xl font-bold mt-4 text-gray-700">{animal.name}</h2>
+                        </div>
+                        )}
+
+                        <div className="flex space-x-4">
+                        <button onClick={() => handleAnswer(true)} className="flex-1 bg-blue-500 text-white py-5 rounded-2xl font-bold text-lg active:scale-95 shadow-md">
+                            มีกระดูก
+                        </button>
+                        <button onClick={() => handleAnswer(false)} className="flex-1 bg-pink-500 text-white py-5 rounded-2xl font-bold text-lg active:scale-95 shadow-md">
+                            ไม่มีกระดูก
+                        </button>
+                        </div>
+                    </div>
+                    )}
+                </GameLayout>
+                );
+            };
+
+            // --- CERTIFICATE ---
+            const renderCertificate = () => {
+                return (
+                <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex flex-col items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-50 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjIiIGZpbGw9IiNGRkQiLz48L3N2Zz4=')]"></div>
+                    
+                    <Trophy className="w-24 h-24 mx-auto text-yellow-400 mb-4 animate-bounce" />
+                    <h2 className="text-3xl font-black text-gray-800 mb-2">เกียรติบัตร</h2>
+                    <p className="text-gray-500 font-medium mb-6">ขอมอบเพื่อแสดงว่า</p>
+                    
+                    <div className="bg-gray-50 py-4 rounded-xl border border-gray-200 mb-6">
+                        <h1 className="text-2xl font-bold text-blue-600">{student.name}</h1>
+                        <p className="text-gray-600 mt-1">ชั้น {student.className} เลขที่ {student.rollNo}</p>
+                    </div>
+
+                    <p className="text-gray-700 font-medium mb-2">เป็นผู้เชี่ยวชาญการจำแนกสัตว์ระดับ</p>
+                    <div className="text-xl font-bold text-green-600 bg-green-100 py-2 rounded-full mb-8 inline-block px-6">
+                        {student.score > 2000 ? 'Animal Expert 👑' : 'Smart Explorer ⭐'}
+                    </div>
+
+                    <div className="flex justify-around border-t border-gray-100 pt-6">
+                        <div className="text-center">
+                        <p className="text-sm text-gray-400">คะแนนรวม</p>
+                        <p className="text-2xl font-black text-gray-800">{student.score}</p>
+                        </div>
+                    </div>
+                    </div>
+
+                    <button 
+                    onClick={() => { setStudent({name:'', className:'ป.4/1', rollNo:'', score:0}); setScreen('HOME'); }}
+                    className="mt-8 text-white font-medium flex items-center bg-white bg-opacity-20 px-6 py-3 rounded-full hover:bg-opacity-30 transition"
+                    >
+                    <LogOut className="w-5 h-5 mr-2" /> กลับหน้าแรก
+                    </button>
+                </div>
+                );
+            };
+
+            // --- ADMIN DASHBOARD ---
+            const renderAdminDashboard = () => {
+                const [studentsData, setStudentsData] = useState([]);
+                const [loading, setLoading] = useState(true);
+
+                useEffect(() => {
+                if (!fb || !user) {
+                    setLoading(false);
+                    return;
+                }
+                
+                const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'animal-classification-p4';
+                const q = fb.collection(fb.db, 'artifacts', appId, 'public', 'data', 'students');
+                
+                const unsubscribe = fb.onSnapshot(q, (snapshot) => {
+                    const data = snapshot.docs.map(doc => doc.data());
+                    data.sort((a, b) => (b.score || 0) - (a.score || 0));
+                    setStudentsData(data);
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Firestore error:", err);
+                    setLoading(false);
+                });
+
+                return () => unsubscribe();
+                }, [user, fb]);
+
+                return (
+                <div className="min-h-screen bg-gray-100 p-4 md:p-8">
+                    <div className="max-w-4xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
+                        <ShieldCheck className="w-8 h-8 text-blue-500 mr-3" />
+                        แดชบอร์ดคุณครู
+                        </h1>
+                        <button onClick={() => setScreen('HOME')} className="bg-white px-4 py-2 rounded-lg shadow-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center">
+                        <LogOut className="w-4 h-4 mr-2" /> ออกจากระบบ
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+                        <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <h2 className="font-bold text-gray-700">ตารางคะแนนนักเรียน</h2>
+                        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+                            ทั้งหมด {studentsData.length} คน
+                        </span>
+                        </div>
+                        
+                        <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-600">
+                            <thead className="bg-gray-50 text-gray-500 font-medium">
+                            <tr>
+                                <th className="p-4 border-b">อันดับ</th>
+                                <th className="p-4 border-b">ชื่อ - สกุล</th>
+                                <th className="p-4 border-b">ชั้น</th>
+                                <th className="p-4 border-b">เลขที่</th>
+                                <th className="p-4 border-b text-right">คะแนน</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {loading ? (
+                                <tr><td colSpan="5" className="p-8 text-center text-gray-400">กำลังโหลดข้อมูล... {(!fb) ? '(Offline Mode ไม่มีข้อมูลเชื่อมต่อ)' : ''}</td></tr>
+                            ) : studentsData.length === 0 ? (
+                                <tr><td colSpan="5" className="p-8 text-center text-gray-400">ยังไม่มีข้อมูลนักเรียน</td></tr>
+                            ) : (
+                                studentsData.map((s, idx) => (
+                                <tr key={idx} className="border-b hover:bg-gray-50 transition">
+                                    <td className="p-4 font-bold text-gray-800">
+                                    {idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : idx + 1}
+                                    </td>
+                                    <td className="p-4">{s.name}</td>
+                                    <td className="p-4">{s.className}</td>
+                                    <td className="p-4">{s.rollNo}</td>
+                                    <td className="p-4 text-right font-bold text-blue-600">{s.score?.toLocaleString() || 0}</td>
+                                </tr>
+                                ))
+                            )}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                );
+            };
+
+            return (
+                <React.Fragment>
+                {screen === 'HOME' && renderHome()}
+                {screen === 'LOGIN' && renderLogin()}
+                {screen === 'ADMIN_LOGIN' && renderAdminLogin()}
+                {screen === 'TUTORIAL' && renderTutorial()}
+                {screen === 'L1' && renderLevel1()}
+                {screen === 'L2' && renderLevel2()}
+                {screen === 'L3' && renderLevel3()}
+                {screen === 'L4' && renderLevel4()}
+                {screen === 'L5' && renderLevel5()}
+                {screen === 'CERTIFICATE' && renderCertificate()}
+                {screen === 'ADMIN' && renderAdminDashboard()}
+                </React.Fragment>
+            );
         }
 
-        function updateProgress() {
-            const percent = (gameState.currentStep / gameState.totalSteps) * 100;
-            document.getElementById('game-progress').style.width = percent + '%';
-        }
+        // --- Reusable Layout Components ---
+        const GameLayout = ({ title, level, stats, student, children }) => {
+            return (
+                <div className="max-w-md mx-auto min-h-screen flex flex-col relative">
+                    <div className="bg-white p-4 rounded-b-3xl shadow-sm z-10 sticky top-0 flex items-center justify-between">
+                        <div>
+                        <h2 className="font-bold text-blue-800 text-sm truncate w-32">{student.name || 'ผู้เล่น'}</h2>
+                        <div className="flex items-center text-xs font-bold mt-1 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full inline-flex">
+                            <Trophy className="w-3 h-3 mr-1" /> {student.score}
+                        </div>
+                        </div>
+                        <div className="text-right">
+                        <div className="text-sm font-black text-gray-800">{title}</div>
+                        <div className="flex justify-end space-x-1 mt-1">
+                            {[1,2,3,4,5].map(l => (
+                            <div key={l} className={`h-1.5 w-4 rounded-full ${l <= level ? 'bg-green-500' : 'bg-gray-200'}`} />
+                            ))}
+                        </div>
+                        </div>
+                    </div>
 
-        function updateUI() {
-            document.getElementById('ui-stars').innerText = '⭐ ' + gameState.player.stars;
-            document.getElementById('ui-coins').innerText = '🪙 ' + gameState.player.coins;
-        }
+                    {stats.combo > 1 && (
+                        <div className="absolute top-20 right-4 bg-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg animate-bounce z-20 flex items-center">
+                        <Zap className="w-3 h-3 mr-1" fill="currentColor" /> {stats.combo}x COMBO!
+                        </div>
+                    )}
 
-        function showResults() {
-            document.getElementById('result-name').innerText = `${gameState.player.name} (${gameState.player.class})`;
-            document.getElementById('result-stars').innerText = gameState.score;
-            document.getElementById('result-coins').innerText = gameState.score * 5;
-            saveStats();
-            switchScreen('screen-result');
-        }
-
-        function goHome() {
-            switchScreen('screen-menu');
-        }
-
-        // --- Sound & Effects ---
-        function toggleSound() {
-            gameState.isMuted = !gameState.isMuted;
-            document.getElementById('sound-btn').innerText = gameState.isMuted ? '🔇' : '🔊';
-        }
-
-        function playSound(type) {
-            if (gameState.isMuted) return;
-            // Native synthesis for accessibility
-            const msg = new SpeechSynthesisUtterance();
-            msg.lang = 'th-TH';
-            if (type === 'correct') {
-                msg.text = 'เก่งมากจ้า';
-            } else if (type === 'wrong') {
-                msg.text = 'ลองใหม่นะ';
-            }
-            window.speechSynthesis.speak(msg);
-        }
-
-        function createConfetti() {
-            for (let i = 0; i < 20; i++) {
-                const c = document.createElement('div');
-                c.className = 'confetti';
-                c.style.left = Math.random() * 100 + 'vw';
-                c.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-                c.style.animationDelay = Math.random() * 2 + 's';
-                document.body.appendChild(c);
-                setTimeout(() => c.remove(), 3000);
-            }
-        }
-
-        // --- Data Persistence ---
-        function savePlayer() {
-            localStorage.setItem('thai_quest_player', JSON.stringify(gameState.player));
-        }
-
-        function saveStats() {
-            let history = JSON.parse(localStorage.getItem('thai_quest_history') || '[]');
-            history.push({
-                ...gameState.player,
-                timestamp: new Date().toISOString(),
-                module: gameState.currentModule,
-                lastScore: gameState.score
-            });
-            localStorage.setItem('thai_quest_history', JSON.stringify(history));
-        }
-
-        // --- Admin Dash ---
-        function showAdmin() {
-            const pass = prompt('ใส่รหัสผ่านคุณครู:');
-            if (pass === 'admin1234') {
-                renderAdminTable();
-                switchScreen('screen-admin');
-            }
-        }
-
-        function renderAdminTable() {
-            const history = JSON.parse(localStorage.getItem('thai_quest_history') || '[]');
-            const tbody = document.getElementById('admin-table-body');
-            tbody.innerHTML = history.map(h => `
-                <tr class="border-b">
-                    <td class="p-2">${h.name}</td>
-                    <td class="p-2">${h.class || '-'}</td>
-                    <td class="p-2">${h.stars}</td>
-                    <td class="p-2 font-bold">${h.lastScore}/${gameState.totalSteps}</td>
-                </tr>
-            `).join('');
-        }
-
-        function clearData() {
-            if(confirm('ลบข้อมูลนักเรียนทั้งหมด?')) {
-                localStorage.clear();
-                alert('ลบเรียบร้อย');
-                window.location.reload();
-            }
-        }
-
-        function exportData() {
-            const history = localStorage.getItem('thai_quest_history') || '[]';
-            const blob = new Blob([history], {type: 'text/json'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'student_data.json';
-            a.click();
-        }
-
-        // Init
-        window.onload = () => {
-            console.log("🇹🇭 ผจญภัยอาณาจักรพยัญชนะไทย พร้อมสนุก!");
-            // Smooth animations for mobile safari
-            document.body.addEventListener('touchstart', () => {}, {passive: true});
+                    <div className="flex-1 p-4 flex flex-col justify-center">
+                        {children}
+                    </div>
+                </div>
+            );
         };
+
+        const LevelComplete = ({ onNext, title }) => {
+            return (
+                <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center p-6 text-center bg-green-50 animate-fade-in">
+                    <div className="bg-white p-8 rounded-3xl shadow-xl w-full">
+                        <Star className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-spin-slow" fill="currentColor" />
+                        <h2 className="text-2xl font-black text-green-600 mb-2">{title}</h2>
+                        <p className="text-gray-500 mb-8">+โบนัสผ่านด่าน</p>
+                        <button 
+                        onClick={onNext}
+                        className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition text-xl"
+                        >
+                        ไปด่านต่อไป ➡️
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
