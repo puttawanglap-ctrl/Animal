@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เกมจำแนกสัตว์ได้อย่างไร - ป.4</title>
     
-    <!-- Tailwind CSS (CDN) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -26,12 +26,17 @@
         }
     </script>
 
-    <!-- React & ReactDOM (CDN) -->
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel (สำหรับการแปลง JSX ในหน้าเว็บ) -->
+    <!-- Babel สำหรับรัน React บนเบราว์เซอร์ -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase Compat -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 
     <style>
         body { -webkit-tap-highlight-color: transparent; }
@@ -44,7 +49,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- SVG Icons (ทดแทน Lucide-react เพื่อให้ใช้งานแบบไฟล์เดียวได้สมบูรณ์) ---
+        // --- SVG Icons ---
         const Play = ({className, fill}) => <svg className={className} fill={fill||"none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>;
         const BookOpen = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
         const Star = ({className, fill}) => <svg className={className} fill={fill||"none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
@@ -78,138 +83,103 @@
             { q: "ข้อใดคือสัตว์ไม่มีกระดูกสันหลังทั้งหมด?", options: ["นก, ปลา", "กุ้ง, กิ้งก่า", "แมงมุม, ผึ้ง", "เต่า, ไส้เดือน"], a: "แมงมุม, ผึ้ง" },
         ];
 
-        // --- Helper Functions ---
         const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
         const vibrate = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
 
-        // --- Main Application Component ---
-        function App() {
-            const [user, setUser] = useState(null);
-            const [fb, setFb] = useState(null); // Firebase Instances
-            const [screen, setScreen] = useState('HOME'); 
-            const [student, setStudent] = useState({ name: '', className: 'ป.4/1', rollNo: '', score: 0 });
-            const [gameStats, setGameStats] = useState({ stars: 0, combo: 0 });
-
-            // --- เชื่อมต่อ Firebase (ถ้ามี Config) ---
-            useEffect(() => {
-                const initFirebase = async () => {
-                    // หากคุณต้องการเปิดระบบเซฟข้อมูล นำ Firebase Config ของคุณมาวางแทนที่ปีกกาว่างๆ ด้านล่างนี้ครับ
-                    // ตัวอย่าง: const MY_FIREBASE_CONFIG = { apiKey: "xxx", authDomain: "xxx", projectId: "xxx", ... };
-                    const MY_FIREBASE_CONFIG = {}; 
-                    
-                    const configToUse = Object.keys(MY_FIREBASE_CONFIG).length > 0 
-                        ? MY_FIREBASE_CONFIG 
-                        : (typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {});
-
-                    if (Object.keys(configToUse).length === 0) return; // ทำงานแบบ Offline ถ้ายไม่มี Config
-
-                    try {
-                        // [แก้ไขแล้ว] ซ่อนคำสั่ง import เพื่อไม่ให้ Babel แจ้งเตือน Error
-                        const dynamicImport = new Function('url', 'return import(url)');
-                        
-                        const appMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-                        const authMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-                        const dbMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-
-                        const app = appMod.initializeApp(configToUse);
-                        const auth = authMod.getAuth(app);
-                        const db = dbMod.getFirestore(app);
-
-                        setFb({ 
-                            db, 
-                            collection: dbMod.collection, 
-                            doc: dbMod.doc, 
-                            setDoc: dbMod.setDoc, 
-                            onSnapshot: dbMod.onSnapshot 
-                        });
-
-                        const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-                        if (initialToken) {
-                            await authMod.signInWithCustomToken(auth, initialToken);
-                        } else {
-                            await authMod.signInAnonymously(auth);
-                        }
-
-                        authMod.onAuthStateChanged(auth, (u) => setUser(u));
-                    } catch (err) {
-                        console.error("Firebase init error:", err);
-                    }
-                };
-                initFirebase();
-            }, []);
-
-            // --- Save Progress to Firestore ---
-            const saveProgress = async (newScore) => {
-                if (!user || !fb || !student.name) return;
-                try {
-                    const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'animal-classification-p4';
-                    const docRef = fb.doc(fb.db, 'artifacts', appId, 'public', 'data', 'students', user.uid);
-                    await fb.setDoc(docRef, {
-                        ...student,
-                        score: newScore || student.score,
-                        lastPlayed: new Date().toISOString(),
-                        uid: user.uid
-                    }, { merge: true });
-                } catch (err) {
-                    console.error("Save error:", err);
-                }
-            };
-
-            const addScore = (points) => {
-                const comboMultiplier = 1 + (gameStats.combo * 0.1);
-                const earned = Math.round(points * comboMultiplier);
-                const newScore = student.score + earned;
-                setStudent(prev => ({ ...prev, score: newScore }));
-                saveProgress(newScore);
-            };
-
-            const handleCorrect = () => {
-                setGameStats(p => ({ ...p, combo: p.combo + 1, stars: p.stars + 1 }));
-                addScore(100);
-            };
-
-            const handleWrong = () => {
-                setGameStats(p => ({ ...p, combo: 0 }));
-                vibrate(200);
-            };
-
-            // --- Screens ---
-
-            const renderHome = () => (
-                <div className="flex flex-col items-center justify-center min-h-[90vh] space-y-8 p-4 text-center animate-fade-in">
-                <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400"></div>
-                    <h1 className="text-4xl font-black text-blue-600 mt-4 mb-2 drop-shadow-sm">จำแนกสัตว์<br/>ได้อย่างไร?</h1>
-                    <p className="text-gray-600 mb-8 font-medium">เกมวิทยาศาตร์แสนสนุก สำหรับ ป.4</p>
-                    
-                    <div className="flex justify-center space-x-4 mb-8 text-5xl">
-                    <span className="animate-bounce">🦕</span>
-                    <span className="animate-bounce" style={{animationDelay: '0.2s'}}>🦴</span>
-                    <span className="animate-bounce" style={{animationDelay: '0.4s'}}>🦋</span>
+        // ----------------------------------------------------
+        // Reusable Layout Components
+        // ----------------------------------------------------
+        function GameLayout({ title, level, stats, student, children }) {
+            return (
+                <div className="max-w-md mx-auto min-h-screen flex flex-col relative animate-fade-in">
+                    <div className="bg-white p-4 rounded-b-3xl shadow-sm z-10 sticky top-0 flex items-center justify-between">
+                        <div>
+                        <h2 className="font-bold text-blue-800 text-sm truncate w-32">{student.name || 'ผู้เล่น'}</h2>
+                        <div className="flex items-center text-xs font-bold mt-1 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full inline-flex">
+                            <Trophy className="w-3 h-3 mr-1" /> {student.score}
+                        </div>
+                        </div>
+                        <div className="text-right">
+                        <div className="text-sm font-black text-gray-800">{title}</div>
+                        <div className="flex justify-end space-x-1 mt-1">
+                            {[1,2,3,4,5].map(l => (
+                            <div key={l} className={`h-1.5 w-4 rounded-full ${l <= level ? 'bg-green-500' : 'bg-gray-200'}`} />
+                            ))}
+                        </div>
+                        </div>
                     </div>
 
-                    <button 
-                    onClick={() => setScreen('LOGIN')}
-                    className="w-full bg-gradient-to-r from-green-400 to-green-500 text-white font-bold py-4 rounded-2xl shadow-lg transform transition active:scale-95 flex items-center justify-center space-x-2 text-xl"
-                    >
-                    <Play className="w-6 h-6" fill="currentColor" />
-                    <span>เข้าสู่ระบบนักเรียน</span>
-                    </button>
+                    {stats.combo > 1 && (
+                        <div className="absolute top-20 right-4 bg-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg animate-bounce z-20 flex items-center">
+                        <Zap className="w-3 h-3 mr-1" fill="currentColor" /> {stats.combo}x COMBO!
+                        </div>
+                    )}
 
-                    <button 
-                    onClick={() => setScreen('ADMIN_LOGIN')}
-                    className="w-full mt-4 bg-gray-100 text-gray-500 font-bold py-3 rounded-2xl shadow-sm transform transition active:scale-95 flex items-center justify-center space-x-2"
-                    >
-                    <ShieldCheck className="w-5 h-5" />
-                    <span>สำหรับคุณครู (Admin)</span>
-                    </button>
-                </div>
+                    <div className="flex-1 p-4 flex flex-col justify-center">
+                        {children}
+                    </div>
                 </div>
             );
+        }
 
-            const renderLogin = () => {
-                const [pwd, setPwd] = useState('');
-                const handleLogin = (e) => {
+        function LevelComplete({ onNext, title }) {
+            return (
+                <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center p-6 text-center bg-green-50 animate-fade-in">
+                    <div className="bg-white p-8 rounded-3xl shadow-xl w-full">
+                        <Star className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-spin-slow" fill="currentColor" />
+                        <h2 className="text-2xl font-black text-green-600 mb-2">{title}</h2>
+                        <p className="text-gray-500 mb-8">+โบนัสผ่านด่าน</p>
+                        <button 
+                        onClick={onNext}
+                        className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition text-xl"
+                        >
+                        ไปด่านต่อไป ➡️
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ----------------------------------------------------
+        // Screen Components
+        // ----------------------------------------------------
+        function HomeScreen({ setScreen }) {
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] space-y-8 p-4 text-center animate-fade-in">
+                    <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400"></div>
+                        <h1 className="text-4xl font-black text-blue-600 mt-4 mb-2 drop-shadow-sm">จำแนกสัตว์<br/>ได้อย่างไร?</h1>
+                        <p className="text-gray-600 mb-8 font-medium">เกมวิทยาศาตร์แสนสนุก สำหรับ ป.4</p>
+                        
+                        <div className="flex justify-center space-x-4 mb-8 text-5xl">
+                        <span className="animate-bounce">🦕</span>
+                        <span className="animate-bounce" style={{animationDelay: '0.2s'}}>🦴</span>
+                        <span className="animate-bounce" style={{animationDelay: '0.4s'}}>🦋</span>
+                        </div>
+
+                        <button 
+                        onClick={() => setScreen('LOGIN')}
+                        className="w-full bg-gradient-to-r from-green-400 to-green-500 text-white font-bold py-4 rounded-2xl shadow-lg transform transition active:scale-95 flex items-center justify-center space-x-2 text-xl"
+                        >
+                        <Play className="w-6 h-6" fill="currentColor" />
+                        <span>เข้าสู่ระบบนักเรียน</span>
+                        </button>
+
+                        <button 
+                        onClick={() => setScreen('ADMIN_LOGIN')}
+                        className="w-full mt-4 bg-gray-100 text-gray-500 font-bold py-3 rounded-2xl shadow-sm transform transition active:scale-95 flex items-center justify-center space-x-2"
+                        >
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>สำหรับคุณครู (Admin)</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        function LoginScreen({ setScreen, student, setStudent }) {
+            const [pwd, setPwd] = useState('');
+            const handleLogin = (e) => {
                 e.preventDefault();
                 if (pwd === '1234' && student.name) {
                     setScreen('TUTORIAL');
@@ -217,144 +187,145 @@
                     alert("รหัสผ่านไม่ถูกต้อง (ใบ้: 1234) หรือลืมใส่ชื่อ");
                     vibrate(200);
                 }
-                };
-                return (
-                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4">
-                    <form onSubmit={handleLogin} className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md">
-                    <div className="flex items-center justify-center mb-6 bg-blue-100 w-16 h-16 rounded-full mx-auto">
-                        <UserIcon className="text-blue-500 w-8 h-8" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">ข้อมูลนักเรียน</h2>
-                    
-                    <div className="space-y-4">
-                        <input required type="text" placeholder="ชื่อ - นามสกุล" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition" 
-                        value={student.name} onChange={e => setStudent({...student, name: e.target.value})} />
-                        
-                        <div className="flex space-x-4">
-                        <select className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
-                            value={student.className} onChange={e => setStudent({...student, className: e.target.value})}>
-                            <option>ป.4/1</option>
-                            <option>ป.4/2</option>
-                            <option>ป.4/3</option>
-                        </select>
-                        <input required type="number" placeholder="เลขที่" className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
-                            value={student.rollNo} onChange={e => setStudent({...student, rollNo: e.target.value})} />
-                        </div>
-
-                        <input required type="password" placeholder="รหัสผ่านเข้าเกม (1234)" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
-                        value={pwd} onChange={e => setPwd(e.target.value)} />
-                    </div>
-
-                    <button type="submit" className="w-full mt-8 bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
-                        เข้าสู่บทเรียน
-                    </button>
-                    <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400 font-medium py-2">
-                        กลับหน้าหลัก
-                    </button>
-                    </form>
-                </div>
-                );
             };
 
-            const renderAdminLogin = () => {
-                const [pwd, setPwd] = useState('');
-                const handleLogin = (e) => {
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4 animate-fade-in">
+                    <form onSubmit={handleLogin} className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md">
+                        <div className="flex items-center justify-center mb-6 bg-blue-100 w-16 h-16 rounded-full mx-auto">
+                            <UserIcon className="text-blue-500 w-8 h-8" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">เข้าสู่ระบบนักเรียน</h2>
+                        
+                        <div className="space-y-4">
+                            <input required type="text" placeholder="ชื่อ - นามสกุล" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition" 
+                            value={student.name} onChange={e => setStudent({...student, name: e.target.value})} />
+                            
+                            <div className="flex space-x-4">
+                            <select className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                                value={student.className} onChange={e => setStudent({...student, className: e.target.value})}>
+                                <option>ป.4/1</option>
+                                <option>ป.4/2</option>
+                                <option>ป.4/3</option>
+                            </select>
+                            <input required type="number" placeholder="เลขที่" className="w-1/2 p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                                value={student.rollNo} onChange={e => setStudent({...student, rollNo: e.target.value})} />
+                            </div>
+
+                            <input required type="password" placeholder="รหัสผ่านเข้าเกม (1234)" className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none"
+                            value={pwd} onChange={e => setPwd(e.target.value)} />
+                        </div>
+
+                        <button type="submit" className="w-full mt-8 bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95 text-lg">
+                            เข้าสู่บทเรียน 🚀
+                        </button>
+                        <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400 font-medium py-2">
+                            กลับหน้าหลัก
+                        </button>
+                    </form>
+                </div>
+            );
+        }
+
+        function AdminLoginScreen({ setScreen }) {
+            const [pwd, setPwd] = useState('');
+            const handleLogin = (e) => {
                 e.preventDefault();
                 if (pwd === 'admin') setScreen('ADMIN');
                 else { alert("รหัสผ่านผิด (ใบ้: admin)"); vibrate(200); }
-                };
-                return (
-                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4">
-                    <form onSubmit={handleLogin} className="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md text-white">
-                    <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-green-400" />
-                    <h2 className="text-2xl font-bold text-center mb-6">ระบบจัดการครูผู้สอน</h2>
-                    <input required type="password" placeholder="รหัสผ่าน Admin" className="w-full p-4 bg-gray-700 rounded-xl border border-gray-600 text-white mb-6"
-                        value={pwd} onChange={e => setPwd(e.target.value)} />
-                    <button type="submit" className="w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
-                        เข้าสู่ระบบ
-                    </button>
-                    <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400">กลับหน้าหลัก</button>
-                    </form>
-                </div>
-                );
             };
 
-            const renderTutorial = () => {
-                return (
-                <div className="max-w-md mx-auto min-h-screen bg-white p-6 pb-24">
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[90vh] p-4 animate-fade-in">
+                    <form onSubmit={handleLogin} className="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md text-white">
+                        <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-green-400" />
+                        <h2 className="text-2xl font-bold text-center mb-6">ระบบจัดการครูผู้สอน</h2>
+                        <input required type="password" placeholder="รหัสผ่าน Admin" className="w-full p-4 bg-gray-700 rounded-xl border border-gray-600 text-white mb-6"
+                            value={pwd} onChange={e => setPwd(e.target.value)} />
+                        <button type="submit" className="w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95">
+                            เข้าสู่ระบบ
+                        </button>
+                        <button type="button" onClick={() => setScreen('HOME')} className="w-full mt-4 text-gray-400">กลับหน้าหลัก</button>
+                    </form>
+                </div>
+            );
+        }
+
+        function TutorialScreen({ setScreen }) {
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-white p-6 pb-24 animate-fade-in">
                     <div className="bg-blue-100 text-blue-800 p-4 rounded-2xl mb-6 flex items-center space-x-3">
-                    <BookOpen className="w-8 h-8" />
-                    <h2 className="text-2xl font-bold">บทเรียนก่อนเล่น</h2>
+                        <BookOpen className="w-8 h-8" />
+                        <h2 className="text-2xl font-bold">บทเรียนก่อนเล่น</h2>
                     </div>
                     
                     <div className="bg-yellow-50 p-6 rounded-3xl border-2 border-yellow-200 mb-6 shadow-sm">
-                    <h3 className="text-xl font-bold text-yellow-800 mb-3 flex items-center">
-                        <Activity className="w-6 h-6 mr-2" /> สัตว์มีกระดูกสันหลัง คืออะไร?
-                    </h3>
-                    <p className="text-gray-700 leading-relaxed mb-4">
-                        คือสัตว์ที่มี <strong className="text-blue-600">กระดูกสันหลัง (Backbone)</strong> เป็นข้อๆ เรียงต่อกันไปตามแนวลำตัว ทำหน้าที่เป็นแกนกลางช่วยพยุงร่างกาย
-                    </p>
-                    <div className="flex justify-around items-center bg-white p-4 rounded-2xl shadow-inner">
-                        <div className="text-center">
-                        <span className="text-4xl block mb-2">🐟</span>
-                        <span className="text-sm font-bold text-green-600">มีกระดูก</span>
+                        <h3 className="text-xl font-bold text-yellow-800 mb-3 flex items-center">
+                            <Activity className="w-6 h-6 mr-2" /> สัตว์มีกระดูกสันหลัง คืออะไร?
+                        </h3>
+                        <p className="text-gray-700 leading-relaxed mb-4">
+                            คือสัตว์ที่มี <strong className="text-blue-600">กระดูกสันหลัง (Backbone)</strong> เป็นข้อๆ เรียงต่อกันไปตามแนวลำตัว ทำหน้าที่เป็นแกนกลางช่วยพยุงร่างกาย
+                        </p>
+                        <div className="flex justify-around items-center bg-white p-4 rounded-2xl shadow-inner">
+                            <div className="text-center">
+                                <span className="text-4xl block mb-2">🐟</span>
+                                <span className="text-sm font-bold text-green-600">มีกระดูก</span>
+                            </div>
+                            <div className="text-4xl text-gray-300">VS</div>
+                            <div className="text-center">
+                                <span className="text-4xl block mb-2">🐙</span>
+                                <span className="text-sm font-bold text-red-500">ไม่มีกระดูก</span>
+                            </div>
                         </div>
-                        <div className="text-4xl text-gray-300">VS</div>
-                        <div className="text-center">
-                        <span className="text-4xl block mb-2">🐙</span>
-                        <span className="text-sm font-bold text-red-500">ไม่มีกระดูก</span>
-                        </div>
-                    </div>
                     </div>
 
                     <button 
-                    onClick={() => setScreen('L1')}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 rounded-2xl shadow-[0_4px_0_rgb(37,99,235)] active:shadow-none active:translate-y-1 transition-all text-xl animate-pulse"
+                        onClick={() => setScreen('L1')}
+                        className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 rounded-2xl shadow-[0_4px_0_rgb(37,99,235)] active:shadow-none active:translate-y-1 transition-all text-xl animate-pulse"
                     >
-                    เริ่มเกมด่านที่ 1 !
+                        เริ่มเกมด่านที่ 1 !
                     </button>
                 </div>
-                );
-            };
+            );
+        }
 
-            // --- LEVEL 1: Match Name and Picture ---
-            const renderLevel1 = () => {
-                const [items, setItems] = useState([]);
-                const [selectedEmoji, setSelectedEmoji] = useState(null);
-                const [matched, setMatched] = useState([]);
+        function Level1Screen({ setScreen, student, stats, handleCorrect, handleWrong }) {
+            const [items, setItems] = useState([]);
+            const [selectedEmoji, setSelectedEmoji] = useState(null);
+            const [matched, setMatched] = useState([]);
 
-                useEffect(() => {
+            useEffect(() => {
                 const selected = shuffle(ANIMAL_DATA).slice(0, 4);
                 const emojis = selected.map(s => ({ id: s.id, type: 'emoji', content: s.emoji, animalId: s.id }));
                 const names = selected.map(s => ({ id: s.id + '_name', type: 'name', content: s.name, animalId: s.id }));
                 setItems(shuffle([...emojis, ...names]));
-                }, []);
+            }, []);
 
-                const handleTap = (item) => {
+            const handleTap = (item) => {
                 if (matched.includes(item.animalId)) return;
                 
                 if (!selectedEmoji) {
                     setSelectedEmoji(item);
                 } else {
                     if (selectedEmoji.id === item.id) {
-                    setSelectedEmoji(null);
+                        setSelectedEmoji(null);
                     } else if (selectedEmoji.animalId === item.animalId && selectedEmoji.type !== item.type) {
-                    setMatched([...matched, item.animalId]);
-                    handleCorrect();
-                    setSelectedEmoji(null);
+                        setMatched([...matched, item.animalId]);
+                        handleCorrect();
+                        setSelectedEmoji(null);
                     } else {
-                    handleWrong();
-                    setSelectedEmoji(null);
+                        handleWrong();
+                        setSelectedEmoji(null);
                     }
                 }
-                };
+            };
 
-                if (matched.length === 4) {
-                    return <LevelComplete title="เก่งมาก! จับคู่ครบแล้ว" onNext={() => setScreen('L2')} />;
-                }
+            if (matched.length === 4) {
+                return <LevelComplete title="เก่งมาก! จับคู่ครบแล้ว" onNext={() => setScreen('L2')} />;
+            }
 
-                return (
-                <GameLayout title="ด่าน 1: จับคู่ภาพและชื่อ" level={1} stats={gameStats} student={student}>
+            return (
+                <GameLayout title="ด่าน 1: จับคู่ภาพและชื่อ" level={1} stats={stats} student={student}>
                     <p className="text-center text-gray-600 mb-6 font-medium">แตะที่รูปภาพและชื่อให้ตรงกัน</p>
                     <div className="grid grid-cols-2 gap-4">
                     {items.map(item => {
@@ -379,19 +350,18 @@
                     })}
                     </div>
                 </GameLayout>
-                );
-            };
+            );
+        }
 
-            // --- LEVEL 2: Classification ---
-            const renderLevel2 = () => {
-                const [queue, setQueue] = useState([]);
-                const [current, setCurrent] = useState(0);
+        function Level2Screen({ setScreen, student, stats, handleCorrect, handleWrong }) {
+            const [queue, setQueue] = useState([]);
+            const [current, setCurrent] = useState(0);
 
-                useEffect(() => {
+            useEffect(() => {
                 setQueue(shuffle(ANIMAL_DATA).slice(0, 6));
-                }, []);
+            }, []);
 
-                const handleClassify = (isVert) => {
+            const handleClassify = (isVert) => {
                 const animal = queue[current];
                 const correctIsVert = animal.type === 'vertebrate';
                 if (isVert === correctIsVert) {
@@ -400,16 +370,16 @@
                     handleWrong();
                 }
                 setTimeout(() => setCurrent(c => c + 1), 300);
-                };
+            };
 
-                if (queue.length > 0 && current >= queue.length) {
-                    return <LevelComplete title="ยอดเยี่ยม! คัดแยกเสร็จสิ้น" onNext={() => setScreen('L3')} />;
-                }
+            if (queue.length > 0 && current >= queue.length) {
+                return <LevelComplete title="ยอดเยี่ยม! คัดแยกเสร็จสิ้น" onNext={() => setScreen('L3')} />;
+            }
 
-                const animal = queue[current];
+            const animal = queue[current];
 
-                return (
-                <GameLayout title="ด่าน 2: จำแนกประเภท" level={2} stats={gameStats} student={student}>
+            return (
+                <GameLayout title="ด่าน 2: จำแนกประเภท" level={2} stats={stats} student={student}>
                     <p className="text-center text-gray-600 mb-4 font-medium">สัตว์ตัวนี้มีกระดูกสันหลังหรือไม่?</p>
                     
                     {animal && (
@@ -438,19 +408,18 @@
                     </div>
                     <p className="text-center mt-6 text-sm text-gray-400">เหลืออีก {queue.length - current} ตัว</p>
                 </GameLayout>
-                );
-            };
+            );
+        }
 
-            // --- LEVEL 3: X-Ray Scanner ---
-            const renderLevel3 = () => {
-                const [animals, setAnimals] = useState([]);
-                const [scannedCount, setScannedCount] = useState(0);
+        function Level3Screen({ setScreen, student, stats, handleCorrect, handleWrong }) {
+            const [animals, setAnimals] = useState([]);
+            const [scannedCount, setScannedCount] = useState(0);
 
-                useEffect(() => {
+            useEffect(() => {
                 setAnimals(shuffle(ANIMAL_DATA).slice(0, 6).map(a => ({...a, scanned: false})));
-                }, []);
+            }, []);
 
-                const scanAnimal = (index) => {
+            const scanAnimal = (index) => {
                 const newArr = [...animals];
                 if (!newArr[index].scanned) {
                     newArr[index].scanned = true;
@@ -458,14 +427,14 @@
                     handleCorrect();
                 }
                 setAnimals(newArr);
-                };
+            };
 
-                if (scannedCount === 6) {
-                    return <LevelComplete title="สุดยอด! สแกนครบทุกตัวแล้ว" onNext={() => setScreen('L4')} />;
-                }
+            if (scannedCount === 6) {
+                return <LevelComplete title="สุดยอด! สแกนครบทุกตัวแล้ว" onNext={() => setScreen('L4')} />;
+            }
 
-                return (
-                <GameLayout title="ด่าน 3: สแกนกระดูก" level={3} stats={gameStats} student={student}>
+            return (
+                <GameLayout title="ด่าน 3: สแกนกระดูก" level={3} stats={stats} student={student}>
                     <p className="text-center text-gray-600 mb-6 font-medium">แตะที่สัตว์เพื่อใช้รังสี X-Ray ค้นหากระดูก</p>
                     <div className="grid grid-cols-2 gap-4">
                     {animals.map((a, idx) => (
@@ -490,30 +459,29 @@
                     ))}
                     </div>
                 </GameLayout>
-                );
-            };
+            );
+        }
 
-            // --- LEVEL 4: Quiz Challenge ---
-            const renderLevel4 = () => {
-                const [currentQ, setCurrentQ] = useState(0);
+        function Level4Screen({ setScreen, student, stats, handleCorrect, handleWrong }) {
+            const [currentQ, setCurrentQ] = useState(0);
 
-                const handleAnswer = (opt) => {
+            const handleAnswer = (opt) => {
                 if (opt === QUIZ_DATA[currentQ].a) {
                     handleCorrect();
                 } else {
                     handleWrong();
                 }
                 setTimeout(() => setCurrentQ(c => c + 1), 500);
-                };
+            };
 
-                if (currentQ >= QUIZ_DATA.length) {
-                    return <LevelComplete title="ความรู้แน่นมาก! ผ่านด่าน 4" onNext={() => setScreen('L5')} />;
-                }
+            if (currentQ >= QUIZ_DATA.length) {
+                return <LevelComplete title="ความรู้แน่นมาก! ผ่านด่าน 4" onNext={() => setScreen('L5')} />;
+            }
 
-                const q = QUIZ_DATA[currentQ];
+            const q = QUIZ_DATA[currentQ];
 
-                return (
-                <GameLayout title="ด่าน 4: ควิซวิทยาศาสตร์" level={4} stats={gameStats} student={student}>
+            return (
+                <GameLayout title="ด่าน 4: ควิซวิทยาศาสตร์" level={4} stats={stats} student={student}>
                     <div className="bg-white p-6 rounded-3xl shadow-md mb-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 bg-blue-100 text-blue-800 px-3 py-1 rounded-bl-xl font-bold">
                         ข้อ {currentQ + 1}/{QUIZ_DATA.length}
@@ -533,18 +501,17 @@
                     ))}
                     </div>
                 </GameLayout>
-                );
-            };
+            );
+        }
 
-            // --- LEVEL 5: Time Attack ---
-            const renderLevel5 = () => {
-                const [timeLeft, setTimeLeft] = useState(20);
-                const [animal, setAnimal] = useState(null);
-                const [playing, setPlaying] = useState(false);
+        function Level5Screen({ setScreen, student, stats, handleCorrect, handleWrong, addBonus }) {
+            const [timeLeft, setTimeLeft] = useState(20);
+            const [animal, setAnimal] = useState(null);
+            const [playing, setPlaying] = useState(false);
 
-                const nextAnimal = () => setAnimal(ANIMAL_DATA[Math.floor(Math.random() * ANIMAL_DATA.length)]);
+            const nextAnimal = () => setAnimal(ANIMAL_DATA[Math.floor(Math.random() * ANIMAL_DATA.length)]);
 
-                useEffect(() => {
+            useEffect(() => {
                 let timer;
                 if (playing && timeLeft > 0) {
                     timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
@@ -552,30 +519,30 @@
                     setPlaying(false);
                 }
                 return () => clearInterval(timer);
-                }, [playing, timeLeft]);
+            }, [playing, timeLeft]);
 
-                const startGame = () => {
+            const startGame = () => {
                 setPlaying(true);
                 nextAnimal();
-                };
+            };
 
-                const handleAnswer = (isVert) => {
+            const handleAnswer = (isVert) => {
                 const correctIsVert = animal.type === 'vertebrate';
                 if (isVert === correctIsVert) {
                     handleCorrect();
-                    setStudent(prev => ({ ...prev, score: prev.score + 50 }));
+                    addBonus(50); // โบนัสเวลา
                 } else {
                     handleWrong();
                 }
                 nextAnimal();
-                };
+            };
 
-                if (timeLeft === 0) {
-                    return <LevelComplete title="หมดเวลา! ทักษะยอดเยี่ยมมาก" onNext={() => setScreen('CERTIFICATE')} />;
-                }
+            if (timeLeft === 0) {
+                return <LevelComplete title="หมดเวลา! ทักษะยอดเยี่ยมมาก" onNext={() => setScreen('CERTIFICATE')} />;
+            }
 
-                return (
-                <GameLayout title="ด่าน 5: ท้าทายเวลา (Time Attack)" level={5} stats={gameStats} student={student}>
+            return (
+                <GameLayout title="ด่าน 5: ท้าทายเวลา (Time Attack)" level={5} stats={stats} student={student}>
                     {!playing ? (
                     <div className="text-center py-12 bg-white rounded-3xl shadow-sm">
                         <Clock className="w-16 h-16 mx-auto text-orange-500 mb-4" />
@@ -611,13 +578,12 @@
                     </div>
                     )}
                 </GameLayout>
-                );
-            };
+            );
+        }
 
-            // --- CERTIFICATE ---
-            const renderCertificate = () => {
-                return (
-                <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex flex-col items-center justify-center p-4">
+        function CertificateScreen({ setScreen, student, setStudent }) {
+            return (
+                <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex flex-col items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-50 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjIiIGZpbGw9IiNGRkQiLz48L3N2Zz4=')]"></div>
                     
@@ -650,24 +616,23 @@
                     <LogOut className="w-5 h-5 mr-2" /> กลับหน้าแรก
                     </button>
                 </div>
-                );
-            };
+            );
+        }
 
-            // --- ADMIN DASHBOARD ---
-            const renderAdminDashboard = () => {
-                const [studentsData, setStudentsData] = useState([]);
-                const [loading, setLoading] = useState(true);
+        function AdminDashboard({ setScreen, fbDB, user }) {
+            const [studentsData, setStudentsData] = useState([]);
+            const [loading, setLoading] = useState(true);
 
-                useEffect(() => {
-                if (!fb || !user) {
+            useEffect(() => {
+                if (!fbDB || !user) {
                     setLoading(false);
                     return;
                 }
                 
-                const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'animal-classification-p4';
-                const q = fb.collection(fb.db, 'artifacts', appId, 'public', 'data', 'students');
+                const appId = 'animal-classification-p4';
+                const q = fbDB.collection('artifacts').doc(appId).collection('public').doc('data').collection('students');
                 
-                const unsubscribe = fb.onSnapshot(q, (snapshot) => {
+                const unsubscribe = q.onSnapshot((snapshot) => {
                     const data = snapshot.docs.map(doc => doc.data());
                     data.sort((a, b) => (b.score || 0) - (a.score || 0));
                     setStudentsData(data);
@@ -678,10 +643,10 @@
                 });
 
                 return () => unsubscribe();
-                }, [user, fb]);
+            }, [user, fbDB]);
 
-                return (
-                <div className="min-h-screen bg-gray-100 p-4 md:p-8">
+            return (
+                <div className="min-h-screen bg-gray-100 p-4 md:p-8 animate-fade-in">
                     <div className="max-w-4xl mx-auto">
                     <div className="flex justify-between items-center mb-8">
                         <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
@@ -714,7 +679,7 @@
                             </thead>
                             <tbody>
                             {loading ? (
-                                <tr><td colSpan="5" className="p-8 text-center text-gray-400">กำลังโหลดข้อมูล... {(!fb) ? '(Offline Mode ไม่มีข้อมูลเชื่อมต่อ)' : ''}</td></tr>
+                                <tr><td colSpan="5" className="p-8 text-center text-gray-400">กำลังโหลดข้อมูล... {(!fbDB) ? '(Offline Mode ไม่มีข้อมูลเชื่อมต่อ)' : ''}</td></tr>
                             ) : studentsData.length === 0 ? (
                                 <tr><td colSpan="5" className="p-8 text-center text-gray-400">ยังไม่มีข้อมูลนักเรียน</td></tr>
                             ) : (
@@ -736,79 +701,104 @@
                     </div>
                     </div>
                 </div>
-                );
+            );
+        }
+
+        // ----------------------------------------------------
+        // Main App Container
+        // ----------------------------------------------------
+        function App() {
+            const [user, setUser] = useState(null);
+            const [fbDB, setFbDB] = useState(null);
+            const [screen, setScreen] = useState('HOME'); 
+            const [student, setStudent] = useState({ name: '', className: 'ป.4/1', rollNo: '', score: 0 });
+            const [gameStats, setGameStats] = useState({ stars: 0, combo: 0 });
+
+            useEffect(() => {
+                const initFirebase = () => {
+                    const MY_FIREBASE_CONFIG = {}; 
+
+                    if (Object.keys(MY_FIREBASE_CONFIG).length === 0 || typeof firebase === 'undefined') return;
+
+                    try {
+                        if (!firebase.apps.length) {
+                            firebase.initializeApp(MY_FIREBASE_CONFIG);
+                        }
+                        const auth = firebase.auth();
+                        const db = firebase.firestore();
+                        setFbDB(db);
+
+                        auth.onAuthStateChanged((u) => {
+                            if (u) {
+                                setUser(u);
+                            } else {
+                                auth.signInAnonymously().catch(err => console.error(err));
+                            }
+                        });
+                    } catch (err) {
+                        console.error("Firebase init error:", err);
+                    }
+                };
+                initFirebase();
+            }, []);
+
+            const saveProgress = async (newScore) => {
+                if (!user || !fbDB || !student.name) return;
+                try {
+                    const appId = 'animal-classification-p4';
+                    const docRef = fbDB.collection('artifacts').doc(appId).collection('public').doc('data').collection('students').doc(user.uid);
+                    await docRef.set({
+                        ...student,
+                        score: newScore || student.score,
+                        lastPlayed: new Date().toISOString(),
+                        uid: user.uid
+                    }, { merge: true });
+                } catch (err) {
+                    console.error("Save error:", err);
+                }
+            };
+
+            const addScore = (points) => {
+                const comboMultiplier = 1 + (gameStats.combo * 0.1);
+                const earned = Math.round(points * comboMultiplier);
+                const newScore = student.score + earned;
+                setStudent(prev => ({ ...prev, score: newScore }));
+                saveProgress(newScore);
+            };
+
+            const addBonus = (points) => {
+                const newScore = student.score + points;
+                setStudent(prev => ({ ...prev, score: newScore }));
+                saveProgress(newScore);
+            };
+
+            const handleCorrect = () => {
+                setGameStats(p => ({ ...p, combo: p.combo + 1, stars: p.stars + 1 }));
+                addScore(100);
+            };
+
+            const handleWrong = () => {
+                setGameStats(p => ({ ...p, combo: 0 }));
+                vibrate(200);
             };
 
             return (
                 <React.Fragment>
-                {screen === 'HOME' && renderHome()}
-                {screen === 'LOGIN' && renderLogin()}
-                {screen === 'ADMIN_LOGIN' && renderAdminLogin()}
-                {screen === 'TUTORIAL' && renderTutorial()}
-                {screen === 'L1' && renderLevel1()}
-                {screen === 'L2' && renderLevel2()}
-                {screen === 'L3' && renderLevel3()}
-                {screen === 'L4' && renderLevel4()}
-                {screen === 'L5' && renderLevel5()}
-                {screen === 'CERTIFICATE' && renderCertificate()}
-                {screen === 'ADMIN' && renderAdminDashboard()}
+                    {screen === 'HOME' && <HomeScreen setScreen={setScreen} />}
+                    {screen === 'LOGIN' && <LoginScreen setScreen={setScreen} student={student} setStudent={setStudent} />}
+                    {screen === 'ADMIN_LOGIN' && <AdminLoginScreen setScreen={setScreen} />}
+                    {screen === 'TUTORIAL' && <TutorialScreen setScreen={setScreen} />}
+                    {screen === 'L1' && <Level1Screen setScreen={setScreen} student={student} stats={gameStats} handleCorrect={handleCorrect} handleWrong={handleWrong} />}
+                    {screen === 'L2' && <Level2Screen setScreen={setScreen} student={student} stats={gameStats} handleCorrect={handleCorrect} handleWrong={handleWrong} />}
+                    {screen === 'L3' && <Level3Screen setScreen={setScreen} student={student} stats={gameStats} handleCorrect={handleCorrect} handleWrong={handleWrong} />}
+                    {screen === 'L4' && <Level4Screen setScreen={setScreen} student={student} stats={gameStats} handleCorrect={handleCorrect} handleWrong={handleWrong} />}
+                    {screen === 'L5' && <Level5Screen setScreen={setScreen} student={student} stats={gameStats} handleCorrect={handleCorrect} handleWrong={handleWrong} addBonus={addBonus} />}
+                    {screen === 'CERTIFICATE' && <CertificateScreen setScreen={setScreen} student={student} setStudent={setStudent} />}
+                    {screen === 'ADMIN' && <AdminDashboard setScreen={setScreen} fbDB={fbDB} user={user} />}
                 </React.Fragment>
             );
         }
 
-        // --- Reusable Layout Components ---
-        const GameLayout = ({ title, level, stats, student, children }) => {
-            return (
-                <div className="max-w-md mx-auto min-h-screen flex flex-col relative">
-                    <div className="bg-white p-4 rounded-b-3xl shadow-sm z-10 sticky top-0 flex items-center justify-between">
-                        <div>
-                        <h2 className="font-bold text-blue-800 text-sm truncate w-32">{student.name || 'ผู้เล่น'}</h2>
-                        <div className="flex items-center text-xs font-bold mt-1 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full inline-flex">
-                            <Trophy className="w-3 h-3 mr-1" /> {student.score}
-                        </div>
-                        </div>
-                        <div className="text-right">
-                        <div className="text-sm font-black text-gray-800">{title}</div>
-                        <div className="flex justify-end space-x-1 mt-1">
-                            {[1,2,3,4,5].map(l => (
-                            <div key={l} className={`h-1.5 w-4 rounded-full ${l <= level ? 'bg-green-500' : 'bg-gray-200'}`} />
-                            ))}
-                        </div>
-                        </div>
-                    </div>
-
-                    {stats.combo > 1 && (
-                        <div className="absolute top-20 right-4 bg-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg animate-bounce z-20 flex items-center">
-                        <Zap className="w-3 h-3 mr-1" fill="currentColor" /> {stats.combo}x COMBO!
-                        </div>
-                    )}
-
-                    <div className="flex-1 p-4 flex flex-col justify-center">
-                        {children}
-                    </div>
-                </div>
-            );
-        };
-
-        const LevelComplete = ({ onNext, title }) => {
-            return (
-                <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center p-6 text-center bg-green-50 animate-fade-in">
-                    <div className="bg-white p-8 rounded-3xl shadow-xl w-full">
-                        <Star className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-spin-slow" fill="currentColor" />
-                        <h2 className="text-2xl font-black text-green-600 mb-2">{title}</h2>
-                        <p className="text-gray-500 mb-8">+โบนัสผ่านด่าน</p>
-                        <button 
-                        onClick={onNext}
-                        className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition text-xl"
-                        >
-                        ไปด่านต่อไป ➡️
-                        </button>
-                    </div>
-                </div>
-            );
-        };
-
-        // Render App
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
