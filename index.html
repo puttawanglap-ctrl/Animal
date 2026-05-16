@@ -97,7 +97,6 @@
                     // ตัวอย่าง: const MY_FIREBASE_CONFIG = { apiKey: "xxx", authDomain: "xxx", projectId: "xxx", ... };
                     const MY_FIREBASE_CONFIG = {}; 
                     
-                    // เพื่อรองรับระบบของ Canvas
                     const configToUse = Object.keys(MY_FIREBASE_CONFIG).length > 0 
                         ? MY_FIREBASE_CONFIG 
                         : (typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {});
@@ -105,24 +104,33 @@
                     if (Object.keys(configToUse).length === 0) return; // ทำงานแบบ Offline ถ้ายไม่มี Config
 
                     try {
-                        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-                        const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-                        const { getFirestore, collection, doc, setDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                        // [แก้ไขแล้ว] ซ่อนคำสั่ง import เพื่อไม่ให้ Babel แจ้งเตือน Error
+                        const dynamicImport = new Function('url', 'return import(url)');
+                        
+                        const appMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                        const authMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                        const dbMod = await dynamicImport("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
-                        const app = initializeApp(configToUse);
-                        const auth = getAuth(app);
-                        const db = getFirestore(app);
+                        const app = appMod.initializeApp(configToUse);
+                        const auth = authMod.getAuth(app);
+                        const db = dbMod.getFirestore(app);
 
-                        setFb({ db, collection, doc, setDoc, onSnapshot });
+                        setFb({ 
+                            db, 
+                            collection: dbMod.collection, 
+                            doc: dbMod.doc, 
+                            setDoc: dbMod.setDoc, 
+                            onSnapshot: dbMod.onSnapshot 
+                        });
 
                         const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
                         if (initialToken) {
-                            await signInWithCustomToken(auth, initialToken);
+                            await authMod.signInWithCustomToken(auth, initialToken);
                         } else {
-                            await signInAnonymously(auth);
+                            await authMod.signInAnonymously(auth);
                         }
 
-                        onAuthStateChanged(auth, (u) => setUser(u));
+                        authMod.onAuthStateChanged(auth, (u) => setUser(u));
                     } catch (err) {
                         console.error("Firebase init error:", err);
                     }
